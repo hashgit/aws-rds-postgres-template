@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: 2010-09-09
+Metadata:
+  'AWS::CloudFormation::Designer':
+    9cc189f9-49aa-4395-b009-2a5627c01ced:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 306
+        'y': 62
+      z: 0
+      embeds: []
+Outputs:
+  DbEndpoint:
+    Value: !GetAtt DbInstance.Endpoint.Address
+Parameters:
+  VpcId:
+    Description: "The ID of the VPC in which the Bet API is located"
+    Type: "AWS::EC2::VPC::Id"
+  Subnets:
+    Description: "Subnets to associate with the RDS instance"
+    Type: "CommaDelimitedList"
+  SecurityGroupIds:
+    Description: "The IDs of security groups that are permitted to access the RDS instance"
+    Type: "String"
+  EnvironmentName:
+    Description: "Name of the environment"
+    Type: "String"
+  AllocatedStorage:
+    Description: "The amount of storage (in gigabytes) to allocate the database instance"
+    Type: "Number"
+  BackupRetentionPeriod:
+    Description: "The number of days for which automated backups are retained"
+    Type: "Number"
+  InstanceClass:
+    Description: "Class of instance"
+    Type: "String"
+  StorageType:
+    Description: "Storage type"
+    Type: "String"
+  MasterUserPassword:
+    Description: "The admin postgres password"
+    NoEcho: true
+    Type: "String"
+  MultiAz:
+    Description: "Specifies if the DB Instance should have a standby deployed in another Availability Zone"
+    Type: "String"
+Resources:
+  DbClientSecurityGroup:
+    Properties:
+      GroupDescription: "Security group for clients of the Postgres database"
+      VpcId: !Ref "VpcId"
+    Type: "AWS::EC2::SecurityGroup"
+  DbSecurityGroup:
+    Properties:
+      GroupDescription: "Allow traffic in"
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref "DbClientSecurityGroup"
+          FromPort: 5432
+          IpProtocol: "tcp"
+          ToPort: 5432
+      VpcId: !Ref "VpcId"
+    Type: "AWS::EC2::SecurityGroup"
+  DbParameterGroup:      
+    Properties:
+      Description: "parameter group for postgres9.6"
+      Family: "Postgres9.6"
+      Parameters:
+        log_hostname: 0
+        max_connections: 1000
+    Type: AWS::RDS::DBParameterGroup
+  DbSubnetGroup:
+    Properties: 
+      DBSubnetGroupDescription: "Subnet group for Postgres instance"
+      SubnetIds: !Ref "Subnets"
+    Type: "AWS::RDS::DBSubnetGroup"    
+  DbInstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      AllocatedStorage: !Ref "AllocatedStorage"
+      CopyTagsToSnapshot: true
+      BackupRetentionPeriod: !Ref "BackupRetentionPeriod"
+      DBInstanceClass: !Ref "InstanceClass"
+      StorageType: !Ref "StorageType"
+      DBInstanceIdentifier: !Sub "Api-${EnvironmentName}"
+      DBName: "dbname"
+      DBParameterGroupName: !Ref "DbParameterGroup"
+      PubliclyAccessible: false
+      DBSubnetGroupName: !Ref "DbSubnetGroup"
+      Engine: "postgres"
+      EngineVersion: "9.6.6"
+      MasterUserPassword: !Ref "MasterUserPassword"
+      MasterUsername: "postgres"
+      MultiAZ: !Ref "MultiAz"
+      VPCSecurityGroups: !Split [ ",", !Join [ ",", [ !Ref "SecurityGroupIds", !Ref "DbSecurityGroup" ] ] ]      
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 9cc189f9-49aa-4395-b009-2a5627c01ced
+    DeletionPolicy: Delete
